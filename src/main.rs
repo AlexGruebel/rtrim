@@ -173,8 +173,20 @@ fn main() {
 
     match run(&args) {
         Ok(_) => {}
-        Err(e) => {
-            eprintln!("error {}", e);
+        Err(err) => {
+
+            // ToDo can I avoid this allocation?
+            let error_message = match err {
+                RTrimError::Git(ge) => {
+                    ge.message().to_string()
+                },
+
+                RTrimError::Io(ioe) => {
+                    ioe.to_string()
+                }
+            };
+
+            eprintln!("error {}", error_message);
         }
     }
 }

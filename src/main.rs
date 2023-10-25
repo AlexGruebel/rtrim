@@ -1,5 +1,7 @@
 use git2::Repository;
+use std::collections::hash_map::DefaultHasher;
 use std::fs::File;
+use std::hash::{Hash, Hasher};
 use std::{
     collections::{HashMap, VecDeque},
     io::{BufRead, BufReader, BufWriter, Write},
@@ -21,6 +23,12 @@ where
     let mut buf = PathBuf::from(path1);
     buf.push(path2);
     buf
+}
+
+fn calculate_hash<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
 }
 
 fn get_staged_lines_with_trailing_spaces(
@@ -81,7 +89,8 @@ fn rtrim_files(dir: &Path, files: &HashMap<String, VecDeque<u32>>) -> Result<(),
         let reader = BufReader::new(file);
 
         //setup file writer
-        let new_file_name = String::from(file_name).add("_test");
+        let new_file_suffix = calculate_hash(file_name).to_string();
+        let new_file_name = String::from(file_name).add(&new_file_suffix);
         let new_file_path = path_combine(dir, new_file_name.as_ref());
 
         let new_file = OpenOptions::new()

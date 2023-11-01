@@ -14,6 +14,13 @@ use std::{env, fs::OpenOptions};
 mod error;
 use error::RTrimError;
 
+
+#[cfg(windows)]
+const LINE_ENDING: &[u8] = b"\r\n";
+#[cfg(not(windows))]
+const LINE_ENDING: &[u8] = b"\n";
+
+
 fn path_combine<T>(path1: T, path2: T) -> PathBuf
 where
     T: AsRef<Path>,
@@ -29,6 +36,15 @@ fn calculate_hash<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
     t.hash(&mut s);
     s.finish()
+}
+/*
+    ADR: git2 only returns LF, no CRLFs => no need to check for CRLF
+*/
+fn trailing_whitespaces(s: &str) -> bool {
+    s.ends_with(' ')
+    || s.ends_with('\t')
+    || s.ends_with(" \n")
+    || s.ends_with("\t\n")
 }
 
 fn get_staged_lines_with_trailing_spaces(
@@ -53,21 +69,22 @@ fn get_staged_lines_with_trailing_spaces(
     //iterate over the diff_result and put lines with trailing spaces in the result
     diff_result.print(git2::DiffFormat::Patch, |d, _, diff_line| -> bool {
         if let Some(line_no) = diff_line.new_lineno() {
-            let line = str::from_utf8(diff_line.content()).unwrap();
+            let raw_line = diff_line.content();
 
-            if line.ends_with(' ') || line.ends_with(" \n") {
-                let file_path = PathBuf::from(d.new_file().path().unwrap());
-                let file_path_str = String::from(file_path.to_str().unwrap());
+            if let Ok(line) = str::from_utf8(raw_line) {
+                if trailing_whitespaces(line) {
+                    let file_path = PathBuf::from(d.new_file().path().unwrap());
+                    let file_path_str = String::from(file_path.to_str().unwrap());
 
-                match result.get_mut(&file_path_str) {
-                    Some(l) => {
-                        l.push_back(line_no);
-                    }
-                    None => {
-                        let mut queue: VecDeque<u32> = VecDeque::new();
-                        queue.push_back(line_no);
-
-                        result.insert(file_path_str, queue);
+                    match result.get_mut(&file_path_str) {
+                        Some(l) => {
+                            l.push_back(line_no);
+                        }
+                        None => {
+                            let mut queue: VecDeque<u32> = VecDeque::new();
+                            queue.push_back(line_no);
+                            result.insert(file_path_str, queue);
+                        }
                     }
                 }
             }
@@ -115,7 +132,7 @@ fn rtrim_files(dir: &Path, files: &HashMap<String, VecDeque<u32>>) -> Result<(),
             }
 
             writer.write_all(line_to_write.as_bytes())?;
-            writer.write_all(b"\n")?;
+            writer.write_all(LINE_ENDING)?;
 
             line_no += 1;
         }

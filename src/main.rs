@@ -37,7 +37,9 @@ fn calculate_hash<T: Hash>(t: &T) -> u64 {
     t.hash(&mut s);
     s.finish()
 }
-
+/*
+    ADR: git2 only returns LF, no CRLFs => no need to check for CRLF
+*/
 fn trailing_whitespaces(s: &str) -> bool {
     s.ends_with(' ')
     || s.ends_with('\t')

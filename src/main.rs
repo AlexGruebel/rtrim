@@ -1,4 +1,4 @@
-use git2::Repository;
+use git2::{Repository, IndexEntry};
 use std::collections::hash_map::DefaultHasher;
 use std::fs::File;
 use std::hash::{Hash, Hasher};
@@ -13,6 +13,13 @@ use std::{env, fs::OpenOptions};
 
 mod error;
 use error::RTrimError;
+
+
+#[cfg(windows)]
+const LINE_ENDING: &'static str = "\r\n";
+#[cfg(not(windows))]
+const LINE_ENDING: &'static str = "\n";
+
 
 fn path_combine<T>(path1: T, path2: T) -> PathBuf
 where
@@ -29,6 +36,13 @@ fn calculate_hash<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
     t.hash(&mut s);
     s.finish()
+}
+
+fn trailing_whitespaces(s: &str) -> bool {
+    s.ends_with(' ')
+    || s.ends_with('\t')
+    || s.ends_with(" \n")
+    || s.ends_with("\t\n")
 }
 
 fn get_staged_lines_with_trailing_spaces(
@@ -55,7 +69,7 @@ fn get_staged_lines_with_trailing_spaces(
         if let Some(line_no) = diff_line.new_lineno() {
             let line = str::from_utf8(diff_line.content()).unwrap();
 
-            if line.ends_with(' ') || line.ends_with(" \n") {
+            if trailing_whitespaces(line) {
                 let file_path = PathBuf::from(d.new_file().path().unwrap());
                 let file_path_str = String::from(file_path.to_str().unwrap());
 
@@ -115,7 +129,7 @@ fn rtrim_files(dir: &Path, files: &HashMap<String, VecDeque<u32>>) -> Result<(),
             }
 
             writer.write_all(line_to_write.as_bytes())?;
-            writer.write_all(b"\n")?;
+            writer.write_all(LINE_ENDING.as_bytes())?;
 
             line_no += 1;
         }

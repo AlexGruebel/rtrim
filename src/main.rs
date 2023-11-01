@@ -69,21 +69,22 @@ fn get_staged_lines_with_trailing_spaces(
     //iterate over the diff_result and put lines with trailing spaces in the result
     diff_result.print(git2::DiffFormat::Patch, |d, _, diff_line| -> bool {
         if let Some(line_no) = diff_line.new_lineno() {
-            let line = str::from_utf8(diff_line.content()).unwrap();
+            let raw_line = diff_line.content();
 
-            if trailing_whitespaces(line) {
-                let file_path = PathBuf::from(d.new_file().path().unwrap());
-                let file_path_str = String::from(file_path.to_str().unwrap());
+            if let Ok(line) = str::from_utf8(raw_line) {
+                if trailing_whitespaces(line) {
+                    let file_path = PathBuf::from(d.new_file().path().unwrap());
+                    let file_path_str = String::from(file_path.to_str().unwrap());
 
-                match result.get_mut(&file_path_str) {
-                    Some(l) => {
-                        l.push_back(line_no);
-                    }
-                    None => {
-                        let mut queue: VecDeque<u32> = VecDeque::new();
-                        queue.push_back(line_no);
-
-                        result.insert(file_path_str, queue);
+                    match result.get_mut(&file_path_str) {
+                        Some(l) => {
+                            l.push_back(line_no);
+                        }
+                        None => {
+                            let mut queue: VecDeque<u32> = VecDeque::new();
+                            queue.push_back(line_no);
+                            result.insert(file_path_str, queue);
+                        }
                     }
                 }
             }

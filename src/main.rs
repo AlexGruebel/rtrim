@@ -1,4 +1,4 @@
-use git2::{Repository, IndexEntry};
+use git2::Repository;
 use std::collections::hash_map::DefaultHasher;
 use std::fs::File;
 use std::hash::{Hash, Hasher};
@@ -16,9 +16,9 @@ use error::RTrimError;
 
 
 #[cfg(windows)]
-const LINE_ENDING: &'static str = "\r\n";
+const LINE_ENDING: &[u8] = b"\r\n";
 #[cfg(not(windows))]
-const LINE_ENDING: &'static str = "\n";
+const LINE_ENDING: &[u8] = b"\n";
 
 
 fn path_combine<T>(path1: T, path2: T) -> PathBuf
@@ -132,7 +132,7 @@ fn rtrim_files(dir: &Path, files: &HashMap<String, VecDeque<u32>>) -> Result<(),
             }
 
             writer.write_all(line_to_write.as_bytes())?;
-            writer.write_all(LINE_ENDING.as_bytes())?;
+            writer.write_all(LINE_ENDING)?;
 
             line_no += 1;
         }

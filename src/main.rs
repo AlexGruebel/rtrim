@@ -48,10 +48,8 @@ fn trailing_whitespaces(s: &str) -> bool {
 }
 
 fn get_staged_lines_with_trailing_spaces(
-    repo_path: &Path,
+    repo: &Repository,
 ) -> Result<HashMap<String, VecDeque<u32>>, RTrimError> {
-    let repo = Repository::open(repo_path)?;
-
     let mut result: HashMap<String, VecDeque<u32>> = HashMap::new();
 
     //get head_tree
@@ -145,11 +143,10 @@ fn rtrim_files(dir: &Path, files: &HashMap<String, VecDeque<u32>>) -> Result<(),
     Ok(())
 }
 
-fn add_files<'a, T>(repo_path: &Path, files: T) -> Result<(), git2::Error>
+fn add_files<'a, T>(repo: &Repository, files: T) -> Result<(), git2::Error>
 where
     T: Iterator<Item = &'a String>,
 {
-    let repo = Repository::open(repo_path)?;
     let mut index = repo.index()?;
 
     for file in files {
@@ -162,36 +159,16 @@ where
 }
 
 fn run(args: &Vec<String>) -> Result<(), RTrimError> {
-    let repo_path = get_repo_path(args)?;
+    let working_dir = env::current_dir()?;
+    let repo = Repository::discover(working_dir)?;
 
-    let files = get_staged_lines_with_trailing_spaces(&repo_path)?;
+    let files = get_staged_lines_with_trailing_spaces(&repo)?;
 
-    rtrim_files(&repo_path, &files)?;
+    rtrim_files(repo.path(), &files)?;
 
-    add_files(&repo_path, files.keys())?;
+    add_files(&repo, files.keys())?;
 
     Ok(())
-}
-
-fn get_repo_path(args: &Vec<String>) -> Result<PathBuf, RTrimError> {
-    let arg1 = args.get(1);
-
-    let repo_path = match arg1 {
-        Some(e) => {
-            let path = PathBuf::from(e);
-
-            if !path.try_exists()? {
-                return Err(RTrimError::Io(std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "file not found",
-                )));
-            }
-            path
-        }
-        None => env::current_dir()?,
-    };
-
-    Ok(repo_path)
 }
 
 fn main() {

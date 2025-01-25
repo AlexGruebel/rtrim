@@ -1,4 +1,4 @@
-use git2::Repository;
+use git2::{DiffOptions, Repository};
 use std::collections::hash_map::DefaultHasher;
 use std::fs::File;
 use std::hash::{Hash, Hasher};
@@ -49,6 +49,7 @@ fn trailing_whitespaces(s: &str) -> bool {
 
 fn get_staged_lines_with_trailing_spaces(
     repo: &Repository,
+    path_filters: &[String]
 ) -> Result<HashMap<String, VecDeque<u32>>, RTrimError> {
     let mut result: HashMap<String, VecDeque<u32>> = HashMap::new();
 
@@ -61,8 +62,14 @@ fn get_staged_lines_with_trailing_spaces(
     //get index
     let index = Option::Some(repo.index()?);
 
+    let mut diff_options = DiffOptions::new();
+
+    for path_filter in path_filters {
+        diff_options.pathspec(path_filter);
+    }
+
     //get diff
-    let diff_result = repo.diff_tree_to_index(head_tree.as_ref(), index.as_ref(), Option::None)?;
+    let diff_result = repo.diff_tree_to_index(head_tree.as_ref(), index.as_ref(), Some(&mut diff_options))?;
 
     //iterate over the diff_result and put lines with trailing spaces in the result
     diff_result.print(git2::DiffFormat::Patch, |d, _, diff_line| -> bool {
@@ -160,12 +167,18 @@ where
 
 fn run(args: &Vec<String>) -> Result<(), RTrimError> {
     let working_dir = env::current_dir()?;
-    let repo = Repository::discover(working_dir)?;
+    let repo = Repository::discover(&working_dir)?;
+    let path_filters = &args[1..args.len()];
 
-    let files = get_staged_lines_with_trailing_spaces(&repo)?;
+    let repo_workdir = if let Some(repo_workdir) = repo.workdir() {
+        repo_workdir
+    }else {
+        &working_dir
+    };
 
-    rtrim_files(repo.path(), &files)?;
+    let files = get_staged_lines_with_trailing_spaces(&repo, &path_filters)?;
 
+    rtrim_files(repo_workdir, &files)?;
     add_files(&repo, files.keys())?;
 
     Ok(())
